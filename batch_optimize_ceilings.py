@@ -1,4 +1,4 @@
-"""Batch-optimize max_formant ceilings for ALL speakers in ALLSSTAR.
+r"""Batch-optimize max_formant ceilings for ALL speakers in ALLSSTAR.
 
 Run overnight:
     & "C:\Users\BatLab\anaconda3\envs\comp_ling_project\python.exe" L2Vowel_ML\batch_optimize_ceilings.py
@@ -9,7 +9,6 @@ separation, and saves results to Data/speaker_ceilings.json.
 
 Already-cached speakers are skipped automatically.
 """
-
 import os
 import re
 import json
@@ -32,6 +31,13 @@ CEILING_STEP = 100
 
 # Only optimize for the 8 plotted monophthongs (normalized ARPAbet labels)
 _CEILING_TARGET_VOWELS = {"IY", "IH", "EH", "AE", "AA", "UH", "UW", "AH1", "AH2"}
+
+# Target language for the current batch run
+TARGET_LANGUAGE = "ENG"
+
+def _ceiling_context_key(target_language, target_vowels):
+    """Build a deterministic cache key from language + vowel set."""
+    return f"{target_language}:{','.join(sorted(target_vowels))}"
 
 # ═══════════════════════════════════════════════════════════════════════
 # Vowel inventories (copied from notebook Cell 4)
@@ -307,28 +313,39 @@ def build_metadata():
 # ═══════════════════════════════════════════════════════════════════════
 
 def main():
+    from datetime import datetime, timezone
+
+    ctx_key = _ceiling_context_key(TARGET_LANGUAGE, _CEILING_TARGET_VOWELS)
+    print(f"Target: {TARGET_LANGUAGE}, vowels: {sorted(_CEILING_TARGET_VOWELS)}")
+    print(f"Context key: {ctx_key}")
+    print()
+
     print("Building file metadata ...")
     all_records = build_metadata()
     print(f"  {len(all_records)} files, ", end="")
 
-    # Group by participant
     by_speaker = defaultdict(list)
     for r in all_records:
         by_speaker[r["participant_id"]].append(r)
     print(f"{len(by_speaker)} speakers")
 
-    # Load existing cache
     cache = {}
     if CACHE_PATH.exists():
         with open(CACHE_PATH, "r") as f:
             cache = json.load(f)
-    already = sum(1 for pid in by_speaker if str(pid) in cache)
+
+    already = 0
+    for pid in by_speaker:
+        key = str(pid)
+        entry = cache.get(key)
+        if entry and ctx_key in entry.get("ceilings", {}):
+            already += 1
     remaining = len(by_speaker) - already
     print(f"  Cache: {already} done, {remaining} remaining")
     print("=" * 60)
 
     if remaining == 0:
-        print("All speakers already cached. Nothing to do.")
+        print("All speakers already cached for this context. Nothing to do.")
         return
 
     t_start_all = time.time()
@@ -336,13 +353,17 @@ def main():
 
     for pid in sorted(by_speaker.keys()):
         key = str(pid)
-        if key in cache:
+        entry = cache.get(key)
+        if entry and ctx_key in entry.get("ceilings", {}):
             continue
 
         rows = by_speaker[pid]
         gender = rows[0]["gender"]
+        native_language = rows[0]["native_language"]
         n_files = len(rows)
-        print(f"[{done+1}/{remaining}] Participant {pid} ({gender}, {n_files} files) ...", end=" ", flush=True)
+        print(f"[{done+1}/{remaining}] Participant {pid} "
+              f"({gender}, L1={native_language}, {n_files} files) ...",
+              end=" ", flush=True)
 
         t0 = time.time()
         ceiling = find_optimal_ceiling(rows)
@@ -350,14 +371,23 @@ def main():
 
         print(f"{ceiling} Hz  ({elapsed:.1f}s)")
 
-        cache[key] = {
+        if key not in cache:
+            cache[key] = {
+                "gender": gender,
+                "native_language": native_language,
+                "ceilings": {},
+            }
+        entry = cache[key]
+        if "ceilings" not in entry:
+            entry["ceilings"] = {}
+        entry["ceilings"][ctx_key] = {
             "ceiling": ceiling,
-            "gender": gender,
-            "participant_id": pid,
+            "target_language": TARGET_LANGUAGE,
+            "target_vowels": sorted(_CEILING_TARGET_VOWELS),
+            "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S"),
         }
         done += 1
 
-        # Save after each speaker so progress is never lost
         with open(CACHE_PATH, "w") as f:
             json.dump(cache, f, indent=2)
 
