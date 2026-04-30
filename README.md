@@ -51,7 +51,9 @@ This is grounded in Flege's Speech Learning Model: L2 vowel categories are attra
 ```
 L2Vowel_ML/                         # Git-tracked code (this repo)
 ├── README.md
-├── L2_vowel_formant_analysis.ipynb  # Main analysis notebook
+├── L2_vowel_formant_analysis.ipynb  # EDA notebook: formant extraction, plotting, outlier inspection
+├── l2_vowel_transfer_modeling.ipynb # ML pipeline: feature engineering → clustering → supervised models
+├── modeling_plan.md                 # Detailed modeling plan and design rationale
 ├── batch_optimize_ceilings.py       # Overnight script to find optimal formant ceilings per speaker
 └── CS289_26Spring_Graduate_project_proposal.docx
 
