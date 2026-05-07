@@ -2,8 +2,6 @@
 
 Predicting L2 English vowel production from L1 acoustic features using machine learning.
 
-**Course:** CS 289A, Spring 2026
-
 ## Project Overview
 
 Second-language (L2) speakers systematically deviate from native vowel targets in ways shaped by their first language (L1). This project asks: *Can a machine-learning model trained on paired L1–L2 vowel acoustics predict the "accent signature" of L2 English vowels from L1 features, and does this mapping generalize across different L1 languages?*
